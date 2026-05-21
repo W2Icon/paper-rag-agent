@@ -1,5 +1,7 @@
 # paper-rag-agent
 
+**English** · [简体中文](README.zh.md)
+
 > Self-hosted academic paper library with LLM analysis, multi-path retrieval, and a Claude-Code-native multi-agent assistant.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
