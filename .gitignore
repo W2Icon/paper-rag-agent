@@ -1,0 +1,124 @@
+# ──────────────────────────────────────────────────────────────────
+# paperdb .gitignore — keep secrets and user data OUT of the repo
+# ──────────────────────────────────────────────────────────────────
+
+# ── SECRETS ─────────────────────────────────────────────────────
+# The real config.toml contains API keys; only the *.example template
+# is committed. NEVER remove these lines.
+config.toml
+*.config.toml
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+credentials.json
+secrets.json
+
+# ── User data / workspaces ─────────────────────────────────────
+# Per-user paperdb workspace folders (in case anyone runs `paperdb init` in
+# the repo root). The marker file is also user-specific.
+workspace/
+workspaces/
+paperdb-workspace/
+paperdb.workspace
+
+# Default ingest output directory (legacy)
+data/
+output/
+
+# Generated archives
+archive/
+knowledge-base/
+
+# MinerU outputs and other cache
+cache/
+.cache/
+mineru_output/
+*_content_list.json
+*_middle.json
+*_model.json
+
+# ── Databases (user libraries) ─────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── PDF / archive content ──────────────────────────────────────
+# Users' PDFs and generated markdown should never be in the repo.
+*.pdf
+!docs/**/*.pdf            # exception: docs intentionally checked in
+*.md.bak
+
+# Per-paper archive folder content
+archive_writer.log
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+.installed.cfg
+
+# Virtual environments
+.venv/
+venv/
+env/
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ── Testing / coverage ─────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# ── Type checkers / linters ────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ── IDE / editor ───────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Logs ───────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Jupyter ────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Streamlit ──────────────────────────────────────────────────
+.streamlit/secrets.toml
+
+# ── Claude Code ────────────────────────────────────────────────
+# Per-developer local config (permissions whitelist, paths). We DO commit
+# .claude/settings.json, .claude/commands/, and .claude/agents/ so others
+# get the slash commands + subagents out of the box.
+.claude/settings.local.json
+.claude/.local/
+
+# ── Local fixtures and ad-hoc test outputs ─────────────────────
+/tmp/
+scripts/_local_*
+fixtures_local/
+threshold_calib/

@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "paperdb"
+version = "0.5.0"
+description = "Academic PDF paper analysis + SQLite DB + multi-agent assistant (DeepSeek + Qwen)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "W2Icon", email = "wakeupgu@gmail.com" }]
+keywords = ["academic", "pdf", "rag", "embeddings", "llm", "deepseek", "qwen", "mineru", "multi-agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    # PDF parsing (Phase 1)
+    "pymupdf>=1.23.0",
+    # LLM client (Phase 2+) — OpenAI-compatible for DeepSeek/Qwen
+    "openai>=1.40",
+    # Cross-platform default data directories (Phase 5)
+    "platformdirs>=4.0",
+    # TOML config parsing — stdlib tomllib on 3.11+, fall back for 3.10
+    "tomli>=2.0; python_version<'3.11'",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27",  # used by Streamlit to call the API
+    "sse-starlette>=2.0",
+]
+ui = [
+    "streamlit>=1.32",
+    "httpx>=0.27",
+    "httpx-sse>=0.4",  # SSE consumption from Streamlit
+]
+# Layout-aware DL parsing backend. Required only when --backend mineru/auto
+# selects the MinerU path. The CLI calls the `mineru` binary via subprocess,
+# so the package itself must be installed at the same Python env for the
+# entry-point to land on PATH. CPU-friendly core install; users with GPUs
+# can swap for the `[all]` extra.
+mineru = [
+    "mineru[core]>=2.0; python_version>='3.10'",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+all = ["paperdb[api,ui,dev]"]
+
+[project.scripts]
+paperdb = "paperdb_cli:main"
+paperdb-api = "paperdb_api.server:main"
+paperdb-ui = "paperdb_ui.launcher:main"
+
+[project.urls]
+Homepage = "https://github.com/W2Icon/paper-rag-agent"
+Documentation = "https://github.com/W2Icon/paper-rag-agent#readme"
+Source = "https://github.com/W2Icon/paper-rag-agent"
+Issues = "https://github.com/W2Icon/paper-rag-agent/issues"
+
+[tool.setuptools]
+# Until we refactor into a proper `src/paperdb/` layout, list modules
+# explicitly. Phase 5.4 will do the move.
+py-modules = [
+    "main", "cli", "config", "db_connection", "schema", "models",
+    "extractor", "paper_extractor", "mineru_extractor", "metadata_extractor",
+    "section_parser", "section_classifier", "reference_parser",
+    "citation_finder", "pdf_reader", "utils", "converters",
+    "batch_processor", "embedder", "intent_classifier",
+    "llm_interface", "llm_analyzer", "archive_writer",
+    "retrieval", "reranker", "cross_analysis", "ref_types",
+    "paperdb_cli", "workspace_ops",
+    # Phase 3.5 graph retrieval — must be on sys.path for `paperdb stats` etc.
+    "knowledge_graph", "graph_retrieval", "route_classifier",
+]
+
+[tool.setuptools.packages.find]
+include = ["db*", "agents*", "paperdb_api*", "paperdb_ui*"]
+exclude = ["data*", "output*", "__pycache__*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

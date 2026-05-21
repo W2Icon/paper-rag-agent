@@ -1,0 +1,8 @@
+pymupdf>=1.23.0
+openai>=1.0
+
+# Optional layout-aware PDF parsing backend. Install separately when you want
+# OCR / formula / table extraction:
+#   pip install -U "mineru[core]"     # CPU only, ~2GB models
+#   pip install -U "mineru[all]"      # full stack incl. VLM
+# Then use:  paperdb ingest paper.pdf --backend mineru

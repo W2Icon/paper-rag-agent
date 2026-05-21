@@ -1,0 +1,92 @@
+# ══════════════════════════════════════════════════════════════════════
+# paperdb config — copy this file to <workspace>/config.toml and edit
+# ══════════════════════════════════════════════════════════════════════
+#
+# ⚠  NEVER commit the real config.toml to git — it contains API keys.
+#    The repo's .gitignore already excludes it; double-check before
+#    every push.
+#
+# Location of the active config file (depends on workspace):
+#   - default workspace : ~/paperdb/config.toml
+#   - custom workspace  : <your-workspace>/config.toml
+#
+# To create a workspace with this template pre-installed, run:
+#   paperdb init                       # creates ~/paperdb/
+#   paperdb init ~/my-papers           # custom location
+#
+# To inspect where paperdb is currently reading config from:
+#   paperdb workspace show
+# ══════════════════════════════════════════════════════════════════════
+
+
+# ── LLM provider (DeepSeek / OpenAI / OpenAI-compatible) ──────────────
+[llm]
+# Which provider to use. `none` disables all LLM features (extraction-only mode).
+# Supported: "deepseek", "openai", "openai-compatible", "none"
+provider = "deepseek"
+
+# 🔑 REQUIRED — your API key
+#   DeepSeek : https://platform.deepseek.com/api_keys
+#   OpenAI   : https://platform.openai.com/api-keys
+api_key = "sk-YOUR_KEY_HERE"
+
+# Base URL — auto-detected for "deepseek" and "openai"; only set this for
+# self-hosted / Azure / Together / DeepInfra / etc.
+# base_url = "https://api.deepseek.com/v1"
+
+# ── Two-tier model routing ─────────────────────────────────
+# "complex" tier: paper summarisation, lit-review viewpoints, cross-paper
+# relationship characterisation, multi-agent orchestrator (reasoning-heavy).
+complex_model = "deepseek-v4-pro"
+complex_max_tokens = 8000
+complex_temperature = 0.0
+complex_thinking = "enabled"          # "enabled" | "disabled" (pro models only)
+complex_reasoning_effort = "high"     # "high" | "max"
+
+# "simple" tier: reference relevance scoring, RAG reranking, intent
+# classification (fast classification jobs).
+simple_model = "deepseek-v4-flash"
+simple_max_tokens = 2000
+simple_temperature = 0.0
+simple_thinking = "disabled"
+
+# Per-stage override — pick which tier handles each analysis step.
+# Defaults shown.
+tier_analyze_paper = "complex"
+tier_score_refs    = "simple"
+tier_lit_review    = "complex"
+tier_rerank        = "simple"
+
+# ── Embeddings (Qwen via DashScope International) ─────────────────────
+# Vectors for semantic search. Qwen text-embedding-v4 is the default;
+# DashScope keys are SEPARATE from your LLM provider key above.
+embedding_model = "text-embedding-v4"
+embedding_base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
+# 🔑 REQUIRED — DashScope API key (separate from llm.api_key!)
+#   Get one at: https://dashscope.console.aliyun.com/apiKey
+embedding_api_key = "sk-YOUR_DASHSCOPE_KEY_HERE"
+
+embedding_dimensions = 1024           # 64|128|256|512|768|1024|1536|2048
+embedding_batch_size = 10             # Qwen v4 caps at 10 per request
+
+
+# ── Paths (advanced — usually you don't need to touch these) ──────────
+[paths]
+# Workspace root. If set, db_path/pdf_dir/archive_dir/cache_dir below are
+# all derived from this and you can leave them commented out.
+# Default: ~/paperdb (or whatever you passed to `paperdb init`).
+# workspace = "~/paperdb"
+
+# Individual subpath overrides — only set if you want to split storage
+# (e.g. database on SSD, archives on NAS).
+# db_path     = "~/paperdb/papers.db"
+# pdf_dir     = "~/paperdb/pdfs"
+# archive_dir = "~/paperdb/archive"
+# cache_dir   = "~/paperdb/cache"
+
+
+# ── Runtime ───────────────────────────────────────────────────────────
+[runtime]
+verbose = false                        # default verbosity for CLI subcommands
+batch_size = 50                        # default batch size for ingest
