@@ -389,7 +389,8 @@ class Retriever:
         ids = [h.paper_id for h in hits]
         placeholders = ",".join(["?"] * len(ids))
         rows = self._db.conn.execute(
-            f"SELECT id, title, abstract, doi FROM papers WHERE id IN ({placeholders})",
+            f"SELECT id, title, abstract, doi, publication_year "
+            f"FROM papers WHERE id IN ({placeholders})",
             ids,
         ).fetchall()
         meta = {r["id"]: r for r in rows}
@@ -400,6 +401,9 @@ class Retriever:
             h.title = row["title"] or ""
             h.abstract = row["abstract"] or ""
             h.doi = row["doi"]
+            py = row["publication_year"]
+            if py is not None:
+                h.year = str(py)
         return hits
 
 
@@ -430,16 +434,22 @@ def _apply_filters(
         )
         params.append(tag)
 
-    # Year filter: papers.year doesn't exist (only references have year).
-    # Approximation: look in references for self-cite? No — better fallback is
-    # to use the most-common year of cited refs, or just ignore. For now we
-    # filter by ingested_at year as a fallback — many users mean "papers I
-    # added in 2024". Document this caveat in the CLI help.
+    # Year filter (v7+): prefer the LLM-extracted publication_year. Papers that
+    # haven't been analyzed yet have publication_year = NULL — we fall back to
+    # the ingested_at year for those so unanalyzed papers don't silently vanish
+    # from year-bounded queries. After `paperdb analyze --missing` the NULL
+    # bucket clears and the filter becomes precise.
     if year_from is not None:
-        where.append("CAST(SUBSTR(p.ingested_at, 1, 4) AS INTEGER) >= ?")
+        where.append(
+            "COALESCE(p.publication_year, "
+            "CAST(SUBSTR(p.ingested_at, 1, 4) AS INTEGER)) >= ?"
+        )
         params.append(year_from)
     if year_to is not None:
-        where.append("CAST(SUBSTR(p.ingested_at, 1, 4) AS INTEGER) <= ?")
+        where.append(
+            "COALESCE(p.publication_year, "
+            "CAST(SUBSTR(p.ingested_at, 1, 4) AS INTEGER)) <= ?"
+        )
         params.append(year_to)
 
     sql = f"SELECT id FROM papers p WHERE {' AND '.join(where)}"

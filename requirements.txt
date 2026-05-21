@@ -1,8 +1,14 @@
+# DEPRECATED — kept only for legacy `pip install -r requirements.txt` users.
+# The authoritative dependency list lives in pyproject.toml. Prefer:
+#
+#     pip install -e ".[api,ui]"        # full local install (API + UI)
+#     pip install -e ".[mineru]"        # optional layout-aware PDF backend
+#     pip install -e ".[dev]"           # pytest + ruff + mypy
+#
+# What follows is only the absolute minimum (PDF parsing + LLM client) needed
+# to run the legacy CLI entry point (`python main.py`). It will go out of sync
+# with pyproject.toml over time — do not rely on it for new installs.
 pymupdf>=1.23.0
-openai>=1.0
-
-# Optional layout-aware PDF parsing backend. Install separately when you want
-# OCR / formula / table extraction:
-#   pip install -U "mineru[core]"     # CPU only, ~2GB models
-#   pip install -U "mineru[all]"      # full stack incl. VLM
-# Then use:  paperdb ingest paper.pdf --backend mineru
+openai>=1.40
+platformdirs>=4.0
+tomli>=2.0; python_version<"3.11"

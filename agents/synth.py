@@ -37,6 +37,15 @@ Write the final response as MARKDOWN with these requirements:
   - End with a one-line "Sources: [paper a], [paper b], ..." listing every
     cited paper_id.
 
+Handling failed specialists:
+  - A specialist block prefixed with `[FAILED after N attempts: ...]` was
+    retried by the orchestrator and still did not produce a usable answer.
+  - DO NOT fabricate content for the failed specialist. Instead, briefly note
+    in the relevant section that the sub-task could not be completed (one
+    sentence is enough), and answer using only the specialists that succeeded.
+  - If EVERY specialist failed, return a short message explaining that the
+    request could not be fulfilled and suggest the user retry or rephrase.
+
 Be concise. Aim for 300-600 words for typical queries; longer only if the
 specialist outputs genuinely warrant it.
 """
@@ -60,14 +69,25 @@ class SynthAgent:
         specialist_blocks = []
         for s in specialists:
             label = f"### specialist: {s.agent_name} (sub-query: {s.sub_query})"
-            body = s.output_text if s.ok else f"[failed: {s.trace.error}]"
+            if s.ok:
+                body = s.output_text
+            else:
+                attempts = getattr(s, "attempts", 1)
+                body = (f"[FAILED after {attempts} attempt(s): "
+                        f"{s.trace.error or 'unknown error'}]")
             specialist_blocks.append(f"{label}\n{body}")
         specialist_text = "\n\n".join(specialist_blocks)
+        all_failed = all(not s.ok for s in specialists)
 
+        failure_note = ""
+        if all_failed:
+            failure_note = ("\n\nNOTE: every specialist failed. Per the system "
+                            "prompt, return a short explanation that the request "
+                            "could not be fulfilled instead of fabricating an answer.")
         user_msg = (
             f"USER QUERY:\n{user_query}\n\n"
             f"ORCHESTRATOR INSTRUCTION:\n{instruction or '(none — use your judgement)'}\n\n"
-            f"SPECIALIST OUTPUTS:\n{specialist_text}\n\n"
+            f"SPECIALIST OUTPUTS:\n{specialist_text}{failure_note}\n\n"
             f"Write the final answer now."
         )
 

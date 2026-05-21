@@ -1,6 +1,6 @@
 from db_connection import DatabaseConnection
 
-CURRENT_SCHEMA_VERSION = 6  # v6: rich content (section_tables/formulas/images) + papers.parse_backend
+CURRENT_SCHEMA_VERSION = 7  # v7: papers.publication_year (LLM-extracted actual publication year)
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS papers (
@@ -29,13 +29,22 @@ CREATE TABLE IF NOT EXISTS papers (
     summary_embedding   BLOB,
 
     -- v6: which backend produced this record ("pymupdf" | "mineru")
-    parse_backend       TEXT NOT NULL DEFAULT 'pymupdf'
+    parse_backend       TEXT NOT NULL DEFAULT 'pymupdf',
+
+    -- v7: actual publication year extracted by the LLM during analyze_paper.
+    -- INTEGER (e.g. 2023). NULL means "not yet analyzed" or "LLM could not
+    -- determine". Used by year-range filters in retrieval.
+    publication_year    INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi) WHERE doi IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_papers_sha256 ON papers(pdf_sha256);
 CREATE INDEX IF NOT EXISTS idx_papers_title ON papers(title);
 CREATE INDEX IF NOT EXISTS idx_papers_ingested_at ON papers(ingested_at);
+-- idx_papers_publication_year: created in _apply_column_migrations after the
+-- ALTER TABLE adds the column. Inline `CREATE INDEX IF NOT EXISTS` here would
+-- crash when initialising on a pre-v7 DB because executescript runs before
+-- the migration block.
 
 CREATE TABLE IF NOT EXISTS sections (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -270,6 +279,22 @@ def _apply_column_migrations(db: DatabaseConnection) -> None:
             "ALTER TABLE papers ADD COLUMN parse_backend TEXT NOT NULL DEFAULT 'pymupdf'"
         )
         db.conn.commit()
+
+    # v7: papers.publication_year — actual publication year (INTEGER) extracted
+    # by the LLM in analyze_paper. Old rows are NULL; users can re-run
+    # `paperdb analyze --all --force` to backfill, or the value gets populated
+    # the next time the paper is re-analyzed.
+    paper_cols = {r[1] for r in db.conn.execute("PRAGMA table_info(papers)").fetchall()}
+    if "publication_year" not in paper_cols:
+        db.conn.execute("ALTER TABLE papers ADD COLUMN publication_year INTEGER")
+        db.conn.commit()
+    # Always ensure the partial index exists (idempotent on fresh DBs too —
+    # the inline `CREATE INDEX` is intentionally absent from the main DDL).
+    db.conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_papers_publication_year "
+        "ON papers(publication_year) WHERE publication_year IS NOT NULL"
+    )
+    db.conn.commit()
 
 
 def get_schema_version(db: DatabaseConnection) -> int:

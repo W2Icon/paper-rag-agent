@@ -25,6 +25,9 @@ class PaperRecord:
     llm_analyzed_at: Optional[str] = None
     # v6: which backend produced this paper ("pymupdf" or "mineru")
     parse_backend: str = "pymupdf"
+    # v7: actual publication year (LLM-extracted in analyze_paper). NULL until
+    # analyzed. Used by retrieval year-range filtering — NOT the ingestion year.
+    publication_year: Optional[int] = None
 
     def to_row(self) -> dict:
         return {
@@ -44,6 +47,7 @@ class PaperRecord:
             "llm_key_findings": json.dumps(self.llm_key_findings, ensure_ascii=False) if self.llm_key_findings else None,
             "llm_analyzed_at": self.llm_analyzed_at,
             "parse_backend": self.parse_backend,
+            "publication_year": self.publication_year,
         }
 
     @classmethod
@@ -68,6 +72,7 @@ class PaperRecord:
             llm_key_findings=json.loads(findings) if findings else None,
             llm_analyzed_at=row.get("llm_analyzed_at"),
             parse_backend=row.get("parse_backend") or "pymupdf",
+            publication_year=row.get("publication_year"),
         )
 
 

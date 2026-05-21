@@ -228,6 +228,7 @@ class PaperRepo:
         research_field: Optional[str] = None,
         methodology: Optional[str] = None,
         key_findings: Optional[list[str]] = None,
+        publication_year: Optional[int] = None,
     ) -> None:
         import json as _json
         with self._db.transaction() as cursor:
@@ -238,6 +239,7 @@ class PaperRepo:
                     llm_research_field = ?,
                     llm_methodology = ?,
                     llm_key_findings = ?,
+                    publication_year = COALESCE(?, publication_year),
                     llm_analyzed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                 WHERE id = ?
                 """,
@@ -246,6 +248,7 @@ class PaperRepo:
                     research_field,
                     methodology,
                     _json.dumps(key_findings, ensure_ascii=False) if key_findings else None,
+                    publication_year,
                     paper_id,
                 ),
             )

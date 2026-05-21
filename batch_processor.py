@@ -304,7 +304,7 @@ class BatchProcessor:
         references = self._ref_repo.get_references_for_paper(paper_id)
         citations = self._paper_repo.get_citation_locations(paper_id)
 
-        # Stage 1 — paper-level summary / methodology / findings
+        # Stage 1 — paper-level summary / methodology / findings / publication_year
         analysis = analyzer.analyze_paper(paper, sections)
         self._paper_repo.update_llm_fields(
             paper_id,
@@ -312,12 +312,15 @@ class BatchProcessor:
             research_field=analysis.research_field,
             methodology=analysis.methodology,
             key_findings=analysis.key_findings,
+            publication_year=analysis.publication_year,
         )
         # Refresh in-memory paper so downstream stages see fresh fields
         paper.llm_summary = analysis.summary
         paper.llm_research_field = analysis.research_field
         paper.llm_methodology = analysis.methodology
         paper.llm_key_findings = analysis.key_findings
+        if analysis.publication_year is not None:
+            paper.publication_year = analysis.publication_year
 
         # Stage 2 — per-reference relevance + role
         if references:

@@ -61,6 +61,7 @@ dev = [
 all = ["paperdb[api,ui,dev]"]
 
 [project.scripts]
+# `paperdb_cli` is the package (paperdb_cli/__init__.py exposes main)
 paperdb = "paperdb_cli:main"
 paperdb-api = "paperdb_api.server:main"
 paperdb-ui = "paperdb_ui.launcher:main"
@@ -75,21 +76,28 @@ Issues = "https://github.com/W2Icon/paper-rag-agent/issues"
 # Until we refactor into a proper `src/paperdb/` layout, list modules
 # explicitly. Phase 5.4 will do the move.
 py-modules = [
-    "main", "cli", "config", "db_connection", "schema", "models",
+    "main", "config", "db_connection", "schema", "models",
     "extractor", "paper_extractor", "mineru_extractor", "metadata_extractor",
     "section_parser", "section_classifier", "reference_parser",
     "citation_finder", "pdf_reader", "utils", "converters",
     "batch_processor", "embedder", "intent_classifier",
     "llm_interface", "llm_analyzer", "archive_writer",
     "retrieval", "reranker", "cross_analysis", "ref_types",
-    "paperdb_cli", "workspace_ops",
+    "workspace_ops",
     # Phase 3.5 graph retrieval — must be on sys.path for `paperdb stats` etc.
     "knowledge_graph", "graph_retrieval", "route_classifier",
 ]
 
 [tool.setuptools.packages.find]
-include = ["db*", "agents*", "paperdb_api*", "paperdb_ui*"]
-exclude = ["data*", "output*", "__pycache__*"]
+# `paperdb_cli` is now a package (Phase 7.6). The package name avoids the
+# generic `cli` namespace that some Python installs already populate in
+# site-packages (e.g. stringzilla ships split.py / wc.py under cli/).
+include = ["paperdb_cli*", "db*", "agents*", "paperdb_api*", "paperdb_ui*"]
+exclude = ["data*", "output*", "__pycache__*", "tests*"]
+
+# PEP 561 — ship type information to downstream consumers.
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
 
 [tool.ruff]
 line-length = 100

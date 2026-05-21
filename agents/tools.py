@@ -271,6 +271,7 @@ def get_paper(ctx: ToolContext, paper_id: int) -> Optional[dict]:
         "abstract": p.abstract,
         "keywords": p.keywords,
         "doi": p.doi,
+        "publication_year": p.publication_year,
         "llm_summary": p.llm_summary,
         "llm_research_field": p.llm_research_field,
         "llm_methodology": p.llm_methodology,

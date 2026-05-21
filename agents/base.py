@@ -31,7 +31,38 @@ from intent_classifier import classify_intent, get_profile
 
 
 MAX_ITERATIONS_DEFAULT = 10
-MAX_TOOL_RESULT_CHARS = 8000  # truncate huge tool outputs
+
+# Per-tool budgets. `get_paper_sections` returns full body text so it gets a
+# larger envelope; other tools return summary records. A fallback default
+# applies when a tool isn't listed.
+_DEFAULT_TOOL_BUDGET = 8000
+TOOL_RESULT_BUDGETS: dict[str, int] = {
+    "get_paper_sections": 16000,
+    "search_within_paper": 12000,
+    "get_paper_references": 12000,
+    "search_papers": 10000,
+    "search_papers_graph": 10000,
+    "get_lit_review_entries": 10000,
+    "find_related_papers": 8000,
+    "get_paper": 6000,
+}
+
+
+def _smart_truncate(content: str, budget: int) -> str:
+    """Truncate `content` to roughly `budget` chars, preserving both ends.
+
+    Hard front-only truncation hides JSON shape (closing brackets, totals at
+    the tail) that the model often relies on to decide whether to keep
+    digging. We keep ~2/3 from the head and ~1/3 from the tail, with an
+    explicit marker so the model knows characters were dropped.
+    """
+    if len(content) <= budget:
+        return content
+    head_n = max(int(budget * 0.65), 200)
+    tail_n = max(budget - head_n - 80, 200)  # 80 chars for the marker
+    dropped = len(content) - head_n - tail_n
+    marker = f'\n... [truncated {dropped} chars] ...\n'
+    return content[:head_n] + marker + content[-tail_n:]
 
 
 @dataclass
@@ -123,8 +154,8 @@ class BaseAgent:
                     print(f"  [{self._name}] tool {name}({arg_brief})  {dt_ms}ms")
 
                 content = json.dumps(result, ensure_ascii=False, default=str)
-                if len(content) > MAX_TOOL_RESULT_CHARS:
-                    content = content[:MAX_TOOL_RESULT_CHARS] + '..."[truncated]"'
+                budget = TOOL_RESULT_BUDGETS.get(name, _DEFAULT_TOOL_BUDGET)
+                content = _smart_truncate(content, budget)
 
                 messages.append({
                     "role": "tool",

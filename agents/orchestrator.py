@@ -86,6 +86,9 @@ SPECIALISTS = {
 }
 
 
+SPECIALIST_MAX_ATTEMPTS = 2  # one retry on failure
+
+
 @dataclass
 class SpecialistResult:
     agent_name: str
@@ -93,6 +96,7 @@ class SpecialistResult:
     output_text: str
     trace: AgentTrace
     ok: bool = True
+    attempts: int = 1
 
 
 @dataclass
@@ -195,35 +199,81 @@ class Orchestrator:
 
     # ── Parallel dispatch ────────────────────────────────────────
 
-    def _dispatch_parallel(self, plan: list[dict], *,
-                            verbose: bool) -> list[SpecialistResult]:
-        results: list[SpecialistResult] = []
-        with ThreadPoolExecutor(max_workers=min(self._max_workers, len(plan))) as ex:
-            futures = {}
-            for step in plan:
-                AgentCls = SPECIALISTS[step["agent"]]
-                agent = AgentCls(self._ctx)
-                fut = ex.submit(agent.run, step["sub_query"], verbose=verbose)
-                futures[fut] = step
+    def _run_one_specialist(self, step: dict, *, verbose: bool) -> SpecialistResult:
+        """Run a specialist with up to SPECIALIST_MAX_ATTEMPTS attempts.
 
-            for fut in as_completed(futures):
-                step = futures[fut]
-                try:
-                    text, trace = fut.result()
-                    results.append(SpecialistResult(
+        Retries cover both LLM transport errors (raised exceptions) and
+        terminal `trace.error` states from BaseAgent (e.g. max-iterations
+        exceeded, JSON-decode failures). We instantiate a fresh agent on
+        each attempt so state can't leak between tries.
+        """
+        AgentCls = SPECIALISTS[step["agent"]]
+        last_exc: Optional[Exception] = None
+        last_trace: Optional[AgentTrace] = None
+        last_text = ""
+        for attempt in range(1, SPECIALIST_MAX_ATTEMPTS + 1):
+            try:
+                agent = AgentCls(self._ctx)
+                text, trace = agent.run(step["sub_query"], verbose=verbose)
+                if trace.error is None:
+                    return SpecialistResult(
                         agent_name=step["agent"],
                         sub_query=step["sub_query"],
                         output_text=text,
                         trace=trace,
-                        ok=trace.error is None,
-                    ))
+                        ok=True,
+                        attempts=attempt,
+                    )
+                last_trace = trace
+                last_text = text
+                if verbose:
+                    print(f"  [orchestrator] {step['agent']} attempt {attempt}/"
+                          f"{SPECIALIST_MAX_ATTEMPTS} failed: {trace.error}")
+            except Exception as e:
+                last_exc = e
+                if verbose:
+                    print(f"  [orchestrator] {step['agent']} attempt {attempt}/"
+                          f"{SPECIALIST_MAX_ATTEMPTS} raised: {e}")
+        if last_exc is not None:
+            return SpecialistResult(
+                agent_name=step["agent"],
+                sub_query=step["sub_query"],
+                output_text=f"[error: {last_exc}]",
+                trace=AgentTrace(error=str(last_exc)),
+                ok=False,
+                attempts=SPECIALIST_MAX_ATTEMPTS,
+            )
+        return SpecialistResult(
+            agent_name=step["agent"],
+            sub_query=step["sub_query"],
+            output_text=last_text or "[no output]",
+            trace=last_trace or AgentTrace(error="unknown failure"),
+            ok=False,
+            attempts=SPECIALIST_MAX_ATTEMPTS,
+        )
+
+    def _dispatch_parallel(self, plan: list[dict], *,
+                            verbose: bool) -> list[SpecialistResult]:
+        results: list[SpecialistResult] = []
+        with ThreadPoolExecutor(max_workers=min(self._max_workers, len(plan))) as ex:
+            futures = {
+                ex.submit(self._run_one_specialist, step, verbose=verbose): step
+                for step in plan
+            }
+            for fut in as_completed(futures):
+                step = futures[fut]
+                try:
+                    results.append(fut.result())
                 except Exception as e:
+                    # Defensive: _run_one_specialist already catches, but if a
+                    # future itself errors (e.g. cancelled), don't lose the slot.
                     results.append(SpecialistResult(
                         agent_name=step["agent"],
                         sub_query=step["sub_query"],
                         output_text=f"[error: {e}]",
                         trace=AgentTrace(error=str(e)),
                         ok=False,
+                        attempts=SPECIALIST_MAX_ATTEMPTS,
                     ))
         # Preserve plan order
         order = {s["agent"] + s["sub_query"]: i for i, s in enumerate(plan)}
@@ -237,12 +287,6 @@ class Orchestrator:
         if agent_name not in SPECIALISTS:
             raise ValueError(f"unknown agent: {agent_name}. "
                              f"Available: {list(SPECIALISTS)}")
-        agent = SPECIALISTS[agent_name](self._ctx)
-        text, trace = agent.run(query, verbose=verbose)
-        return SpecialistResult(
-            agent_name=agent_name,
-            sub_query=query,
-            output_text=text,
-            trace=trace,
-            ok=trace.error is None,
+        return self._run_one_specialist(
+            {"agent": agent_name, "sub_query": query}, verbose=verbose
         )

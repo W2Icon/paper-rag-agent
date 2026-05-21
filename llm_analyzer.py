@@ -51,6 +51,7 @@ class PaperAnalysis:
     research_field: str
     methodology: str
     key_findings: list[str]
+    publication_year: Optional[int] = None
 
 
 @dataclass
@@ -63,6 +64,31 @@ class RefScore:
 def _truncate(text: str, n: int) -> str:
     text = (text or "").strip()
     return text if len(text) <= n else text[:n] + "…"
+
+
+def _coerce_year(raw) -> Optional[int]:
+    """Best-effort year coercion from arbitrary LLM JSON output.
+
+    Accepts: int, float, str. Rejects: None, bool, dict/list/other containers
+    (otherwise `str({...})` would happily find a year inside JSON noise).
+    Plausible window is 1900-2099 — wrong year is worse than no year for
+    retrieval filters, so we never fall back to "guess current year".
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    if not isinstance(raw, (int, float, str)):
+        return None
+    try:
+        year = int(raw)
+    except (TypeError, ValueError):
+        import re
+        m = re.search(r"\b(19|20)\d{2}\b", str(raw))
+        if not m:
+            return None
+        year = int(m.group(0))
+    if 1900 <= year <= 2099:
+        return year
+    return None
 
 
 def _section_snippet(sec: SectionRecord) -> str:
@@ -137,11 +163,17 @@ class PaperAnalyzer:
         picked = _pick_summary_sections(sections)
         section_blob = "\n\n".join(_section_snippet(s) for s in picked) if picked else "(no sections extracted)"
 
+        # DOI often carries the year as a path segment (e.g. .../adapen.2026.100273)
+        # and is one of the most reliable signals for publication_year, so we
+        # surface it explicitly to the LLM instead of hoping it appears verbatim
+        # in the abstract or section snippets.
+        doi_line = f"DOI: {paper.doi}\n" if paper.doi else ""
         prompt = (
             "You are analysing an academic paper. Output a structured JSON object "
             "with the schema described below. Be specific and technical; avoid generic prose.\n\n"
             f"TITLE: {paper.title}\n"
             f"AUTHORS: {', '.join(paper.authors[:8])}\n"
+            f"{doi_line}"
             f"KEYWORDS: {', '.join(paper.keywords)}\n\n"
             f"ABSTRACT:\n{_truncate(paper.abstract, MAX_ABSTRACT_CHARS)}\n\n"
             f"SELECTED SECTIONS:\n{section_blob}\n\n"
@@ -150,6 +182,9 @@ class PaperAnalyzer:
             "  research_field   (string, short label, e.g. 'EV energy consumption modeling')\n"
             "  methodology      (string, 2-4 sentences, concrete techniques/models/datasets used)\n"
             "  key_findings     (array of 3-6 short strings, each a concrete result or contribution)\n"
+            "  publication_year (integer, the year this paper was published — look for it in the "
+            "abstract, copyright line, header/footer, DOI, or arXiv id. Output ONLY the 4-digit "
+            "year as a JSON integer like 2023. If you genuinely cannot determine it, use null.)\n"
             "\nWrite in the same language as the paper title (English title → English output, "
             "Chinese title → Chinese output)."
         )
@@ -165,6 +200,7 @@ class PaperAnalyzer:
             research_field=str(data.get("research_field", "")).strip(),
             methodology=str(data.get("methodology", "")).strip(),
             key_findings=[str(x).strip() for x in (data.get("key_findings") or []) if str(x).strip()],
+            publication_year=_coerce_year(data.get("publication_year")),
         )
 
     # ── Stage 2: per-reference relevance + relationship ──────────
