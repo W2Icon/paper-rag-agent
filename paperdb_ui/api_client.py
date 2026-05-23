@@ -94,16 +94,42 @@ def stats() -> dict:
     return r.json()
 
 
-@st.cache_data(ttl=10, show_spinner=False)
-def health() -> tuple[bool, str]:
-    """Lightweight check; returns (ok, message). Cached briefly — a few
-    seconds of stale 'healthy' is fine and prevents per-page reconnect chatter."""
+def health() -> tuple[bool, str, str]:
+    """Lightweight check; returns (ok, message, error_kind).
+
+    `error_kind` is one of:
+      - ""        — ok
+      - "connect" — TCP refused / connect timeout / DNS fail
+                    (API genuinely not running)
+      - "timeout" — connected but no response in time
+                    (API is busy, e.g. mid-agent-call; transient)
+      - "http"    — server returned non-2xx
+      - "other"   — anything else
+
+    Probes are NOT cached. Caching success is fine, caching a transient
+    failure makes the UI claim the API is dead for 10s after it recovers —
+    which is exactly the bug pattern users hit during heavy `/agent` calls.
+    The /healthz endpoint itself is a one-line `return {"status":"ok"}` so
+    uncached probes cost essentially nothing.
+
+    Probe timeout bumped from 2.0s → 5.0s: when the API is doing a heavy
+    sync handler (LLM call, embedding, big stats query) FastAPI's threadpool
+    can briefly delay even trivial routes, and 2s wasn't enough headroom.
+    """
     try:
-        r = client().get("/healthz", timeout=2.0)
+        r = client().get("/healthz", timeout=5.0)
         r.raise_for_status()
-        return True, "API reachable"
+        return True, "API reachable", ""
+    except httpx.ConnectError as e:
+        return False, f"ConnectError: {e}", "connect"
+    except httpx.ConnectTimeout as e:
+        return False, f"ConnectTimeout: {e}", "connect"
+    except httpx.ReadTimeout as e:
+        return False, f"ReadTimeout: {e}", "timeout"
+    except httpx.HTTPStatusError as e:
+        return False, f"HTTP {e.response.status_code}", "http"
     except Exception as e:
-        return False, f"{type(e).__name__}: {e}"
+        return False, f"{type(e).__name__}: {e}", "other"
 
 
 # ── Agent SSE streaming ──────────────────────────────────────────

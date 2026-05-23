@@ -28,17 +28,30 @@ hero(
 # ── API health ───────────────────────────────────────────────────
 
 
-ok, msg = health()
+ok, msg, kind = health()
 if not ok:
+    # Different remediation depending on why the probe failed. "Start the
+    # API" advice is wrong (and confusing) for `timeout` — the API IS up,
+    # just busy. Offering a retry button beats stop() in that case so users
+    # don't think they need to relaunch anything.
+    if kind == "timeout":
+        title = t("landing.backend_busy_title")
+        hint = t("landing.backend_busy_hint")
+    else:
+        title = t("landing.backend_unreachable_title")
+        hint = t("landing.backend_unreachable_hint")
     st.markdown(
         f'<div style="border:1px solid #F4C8C8;background:#FEF7F7;'
         f'border-radius:10px;padding:1rem 1.2rem;color:#9B2F2F;'
         f'margin:1rem 0">'
-        f'<strong>{t("landing.backend_unreachable_title")}</strong> {msg}<br>'
+        f'<strong>{title}</strong> {msg}<br>'
         f'<span style="color:#6B6B6B;font-size:0.9rem">'
-        f'{t("landing.backend_unreachable_hint")}</span></div>',
+        f'{hint}</span></div>',
         unsafe_allow_html=True,
     )
+    if kind == "timeout":
+        if st.button(t("landing.retry")):
+            st.rerun()
     st.stop()
 
 

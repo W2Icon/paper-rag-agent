@@ -83,6 +83,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "landing.backend_unreachable_hint": (
             "Start the API in another terminal: <code>paperdb-api</code>"
         ),
+        "landing.backend_busy_title": "API is busy — health probe timed out.",
+        "landing.backend_busy_hint": (
+            "The API is running but didn't respond within 5s. This usually "
+            "means a long-running task (agent run, LLM analysis, large "
+            "ingestion) is in flight. No need to restart — wait a moment "
+            "and retry."
+        ),
+        "landing.retry": "Retry",
         "landing.library_overview": "Library overview",
         "landing.metric.papers": "Papers",
         "landing.metric.sections": "Sections",
@@ -280,6 +288,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "landing.backend_unreachable_hint": (
             "请在另一个终端启动 API： <code>paperdb-api</code>"
         ),
+        "landing.backend_busy_title": "API 繁忙——健康检查超时。",
+        "landing.backend_busy_hint": (
+            "API 正在运行，但在 5 秒内没有响应。通常是因为有长时间任务"
+            "（agent 调用、LLM 分析、大批量摄入）正在进行中。无需重启服务，"
+            "稍等片刻后重试即可。"
+        ),
+        "landing.retry": "重试",
         "landing.library_overview": "文献库概览",
         "landing.metric.papers": "论文",
         "landing.metric.sections": "章节",
